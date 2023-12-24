@@ -27,7 +27,7 @@ impl WallColor {
 
 const PLAYER_FOV: f32 = PI / 3.0; // field of view
 const MAX_DISTANCE: f32 = 20.0; // Adjust this value as needed
-const MOVEMENT_SPEED: f32 = 0.04; // Adjust as needed
+const MOVEMENT_SPEED: f32 = 0.1; // Adjust as needed
 const ROTATION_SPEED: f32 = 0.05; // Adjust as needed
 
 const WIN_W: usize = 1024; // image width
