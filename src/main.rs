@@ -77,25 +77,13 @@ fn main() {
     let mut player_y = 2.345; // player y position
     let mut player_a = 1.523; // player view direction
 
+    let mut overlay_active = false;
+
     'running: loop {
         // Get the current keyboard state
         let keyboard_state = event_pump.keyboard_state();
 
-        // Check for specific key states
-        if keyboard_state.is_scancode_pressed(Scancode::A) {
-            player_a -= ROTATION_SPEED;
-        }
-        if keyboard_state.is_scancode_pressed(Scancode::D) {
-            player_a += ROTATION_SPEED;
-        }
-        if keyboard_state.is_scancode_pressed(Scancode::W) {
-            player_x += player_a.cos() * MOVEMENT_SPEED;
-            player_y += player_a.sin() * MOVEMENT_SPEED;
-        }
-        if keyboard_state.is_scancode_pressed(Scancode::S) {
-            player_x -= player_a.cos() * MOVEMENT_SPEED;
-            player_y -= player_a.sin() * MOVEMENT_SPEED;
-        }
+        move_player(keyboard_state, &mut player_a, &mut player_x, &mut player_y);
 
         for j in 0..WIN_H {
             for i in 0..WIN_W {
@@ -109,25 +97,27 @@ fn main() {
         let rect_w = WIN_W / MAP_W;
         let rect_h = WIN_H / MAP_H;
 
-        // draw_scene(
-        //     player_x,
-        //     player_y,
-        //     player_a,
-        //     PLAYER_FOV,
-        //     &mut framebuffer,
-        //     rect_w,
-        //     rect_h,
-        //     &char_colors,
-        // );
-
-        draw_debug(
-            rect_w,
-            rect_h,
-            &mut framebuffer,
-            player_x,
-            player_y,
-            player_a,
-        );
+        if overlay_active {
+            draw_debug(
+                rect_w,
+                rect_h,
+                &mut framebuffer,
+                player_x,
+                player_y,
+                player_a,
+            );
+        } else {
+            draw_scene(
+                player_x,
+                player_y,
+                player_a,
+                PLAYER_FOV,
+                &mut framebuffer,
+                rect_w,
+                rect_h,
+                &char_colors,
+            );
+        }
 
         let texture_creator = canvas.texture_creator();
         let mut texture = texture_creator
@@ -152,11 +142,40 @@ fn main() {
                     keycode: Some(Keycode::Escape),
                     ..
                 } => break 'running,
+
+                Event::KeyDown {
+                    keycode: Some(Keycode::Tab),
+                    ..
+                } => overlay_active = !overlay_active,
+
                 _ => {}
             }
         }
 
         ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
+    }
+}
+
+fn move_player(
+    keyboard_state: sdl2::keyboard::KeyboardState<'_>,
+    player_a: &mut f32,
+    player_x: &mut f32,
+    player_y: &mut f32,
+) {
+    // Check for specific key states
+    if keyboard_state.is_scancode_pressed(Scancode::A) {
+        *player_a -= ROTATION_SPEED;
+    }
+    if keyboard_state.is_scancode_pressed(Scancode::D) {
+        *player_a += ROTATION_SPEED;
+    }
+    if keyboard_state.is_scancode_pressed(Scancode::W) {
+        *player_x += player_a.cos() * MOVEMENT_SPEED;
+        *player_y += player_a.sin() * MOVEMENT_SPEED;
+    }
+    if keyboard_state.is_scancode_pressed(Scancode::S) {
+        *player_x -= player_a.cos() * MOVEMENT_SPEED;
+        *player_y -= player_a.sin() * MOVEMENT_SPEED;
     }
 }
 
