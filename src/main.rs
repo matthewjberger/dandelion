@@ -1,5 +1,5 @@
 use sdl2::{event::Event, keyboard::Keycode};
-use std::time::Duration;
+use std::{f32::consts::PI, time::Duration};
 
 const WIN_W: usize = 512; // image width
 const WIN_H: usize = 512; // image height
@@ -60,6 +60,8 @@ fn main() {
 
     let player_x = 3.456; // player x position
     let player_y = 2.345; // player y position
+    let player_a = 1.523; // player view direction
+    const player_fov: f32 = PI / 3.0; // field of view
 
     'running: loop {
         for j in 0..WIN_H {
@@ -106,8 +108,26 @@ fn main() {
             pack_color(255, 255, 255, 255),
         );
 
+        draw_fov_sector(
+            player_x,
+            player_y,
+            player_a,
+            player_fov,
+            &mut framebuffer,
+            rect_w,
+            rect_h,
+            &MAP,
+        );
+
         // Cast rays to represent the player's view direction
-        cast_rays(player_x, player_y, 1.523, &mut framebuffer, rect_w, rect_h);
+        cast_rays(
+            player_x,
+            player_y,
+            player_a,
+            &mut framebuffer,
+            rect_w,
+            rect_h,
+        );
 
         let texture_creator = canvas.texture_creator();
         let mut texture = texture_creator
@@ -191,9 +211,9 @@ fn cast_rays(
     rect_w: usize,
     rect_h: usize,
 ) {
-    let mut view_dotted = false;
+    let mut view_dotted = true;
 
-    for t in (0..200).map(|t| t as f32 * 0.05) {
+    for t in (0..400).map(|t| t as f32 * 0.05) {
         let cx = player_x + t * player_a.cos();
         let cy = player_y + t * player_a.sin();
         let map_x = cx.floor() as usize;
@@ -212,6 +232,39 @@ fn cast_rays(
         }
 
         if view_dotted {
+            let pix_x = (cx * rect_w as f32) as usize;
+            let pix_y = (cy * rect_h as f32) as usize;
+            framebuffer[pix_x + pix_y * WIN_W] = pack_color(255, 255, 255, 255);
+        }
+    }
+}
+
+fn draw_fov_sector(
+    player_x: f32,
+    player_y: f32,
+    player_a: f32,
+    fov: f32,
+    framebuffer: &mut Vec<u32>,
+    rect_w: usize,
+    rect_h: usize,
+    map: &[&str; MAP_H],
+) {
+    for i in 0..WIN_W {
+        let angle = player_a - fov / 2.0 + fov * i as f32 / WIN_W as f32;
+
+        for t in (0..400).map(|t| t as f32 * 0.05) {
+            let cx = player_x + t * angle.cos();
+            let cy = player_y + t * angle.sin();
+            let map_x = cx.floor() as usize;
+            let map_y = cy.floor() as usize;
+
+            if map_x < MAP_W && map_y < MAP_H {
+                let map_tile = map[map_y].chars().nth(map_x).unwrap();
+                if map_tile != ' ' {
+                    break;
+                }
+            }
+
             let pix_x = (cx * rect_w as f32) as usize;
             let pix_y = (cy * rect_h as f32) as usize;
             framebuffer[pix_x + pix_y * WIN_W] = pack_color(255, 255, 255, 255);
