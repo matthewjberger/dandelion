@@ -25,8 +25,9 @@ impl WallColor {
     }
 }
 
+const PLAYER_FOV: f32 = PI / 3.0; // field of view
 const MAX_DISTANCE: f32 = 20.0; // Adjust this value as needed
-const MOVEMENT_SPEED: f32 = 0.4; // Adjust as needed
+const MOVEMENT_SPEED: f32 = 0.04; // Adjust as needed
 const ROTATION_SPEED: f32 = 0.05; // Adjust as needed
 
 const WIN_W: usize = 1024; // image width
@@ -75,7 +76,6 @@ fn main() {
     let mut player_x = 3.456; // player x position
     let mut player_y = 2.345; // player y position
     let mut player_a = 1.523; // player view direction
-    const PLAYER_FOV: f32 = PI / 3.0; // field of view
 
     'running: loop {
         // Get the current keyboard state
@@ -109,46 +109,24 @@ fn main() {
         let rect_w = WIN_W / MAP_W;
         let rect_h = WIN_H / MAP_H;
 
-        // for j in 0..MAP_H {
-        //     for i in 0..MAP_W {
-        //         if MAP[j].chars().nth(i).unwrap() == ' ' {
-        //             continue; // skip empty spaces
-        //         }
-        //         let rect_x = i * rect_w;
-        //         let rect_y = j * rect_h;
-        //         draw_rectangle(
-        //             &mut framebuffer,
-        //             WIN_W,
-        //             WIN_H,
-        //             rect_x,
-        //             rect_y,
-        //             rect_w,
-        //             rect_h,
-        //             pack_color(0, 255, 255, 255),
-        //         );
-        //     }
-        // }
-
-        // draw_rectangle(
+        // draw_scene(
+        //     player_x,
+        //     player_y,
+        //     player_a,
+        //     PLAYER_FOV,
         //     &mut framebuffer,
-        //     WIN_W,
-        //     WIN_H,
-        //     (player_x * rect_w as f32) as usize,
-        //     (player_y * rect_h as f32) as usize,
-        //     5,
-        //     5,
-        //     pack_color(255, 255, 255, 255),
+        //     rect_w,
+        //     rect_h,
+        //     &char_colors,
         // );
 
-        draw(
+        draw_debug(
+            rect_w,
+            rect_h,
+            &mut framebuffer,
             player_x,
             player_y,
             player_a,
-            PLAYER_FOV,
-            &mut framebuffer,
-            rect_w,
-            rect_h,
-            &char_colors,
         );
 
         let texture_creator = canvas.texture_creator();
@@ -179,6 +157,70 @@ fn main() {
         }
 
         ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
+    }
+}
+
+fn draw_debug(
+    rect_w: usize,
+    rect_h: usize,
+    framebuffer: &mut Vec<u32>,
+    player_x: f32,
+    player_y: f32,
+    player_a: f32,
+) {
+    draw_map_overlay(rect_w, rect_h, framebuffer);
+    draw_player(framebuffer, player_x, rect_w, player_y, rect_h);
+    draw_fov_sector(
+        player_x,
+        player_y,
+        player_a,
+        PLAYER_FOV,
+        framebuffer,
+        rect_w,
+        rect_h,
+        &MAP,
+    );
+    cast_rays(player_x, player_y, player_a, framebuffer, rect_w, rect_h);
+}
+
+fn draw_player(
+    framebuffer: &mut Vec<u32>,
+    player_x: f32,
+    rect_w: usize,
+    player_y: f32,
+    rect_h: usize,
+) {
+    draw_rectangle(
+        framebuffer,
+        WIN_W,
+        WIN_H,
+        (player_x * rect_w as f32) as usize,
+        (player_y * rect_h as f32) as usize,
+        5,
+        5,
+        pack_color(255, 255, 255, 255),
+    );
+}
+
+fn draw_map_overlay(rect_w: usize, rect_h: usize, framebuffer: &mut Vec<u32>) {
+    for j in 0..MAP_H {
+        for i in 0..MAP_W {
+            if MAP[j].chars().nth(i).unwrap() == ' ' {
+                continue; // skip empty spaces
+            }
+            let rect_x = i * rect_w;
+            let rect_y = j * rect_h;
+            draw_rectangle(
+                framebuffer,
+                WIN_W,
+                WIN_H,
+                rect_x,
+                rect_y,
+                rect_w,
+                rect_h,
+                pack_color(0, 255, 255, 255),
+            );
+        }
     }
 }
 
@@ -225,7 +267,7 @@ fn unpack_color(color: u32) -> (u8, u8, u8, u8) {
     (r, g, b, a)
 }
 
-fn draw(
+fn draw_scene(
     player_x: f32,
     player_y: f32,
     player_a: f32,
@@ -306,6 +348,75 @@ fn draw(
                     current_wall_color = None;
                 }
             }
+        }
+    }
+}
+
+fn cast_rays(
+    player_x: f32,
+    player_y: f32,
+    player_a: f32,
+    framebuffer: &mut Vec<u32>,
+    rect_w: usize,
+    rect_h: usize,
+) {
+    let mut view_dotted = true;
+
+    for t in (0..400).map(|t| t as f32 * 0.05) {
+        let cx = player_x + t * player_a.cos();
+        let cy = player_y + t * player_a.sin();
+        let map_x = cx.floor() as usize;
+        let map_y = cy.floor() as usize;
+
+        if map_x < MAP_W && map_y < MAP_H {
+            let map_tile = MAP[map_y].chars().nth(map_x).unwrap();
+            if map_tile != ' ' {
+                if !view_dotted {
+                    // Draw the dotted line until the first non-empty tile
+                    view_dotted = true;
+                } else {
+                    break;
+                }
+            }
+        }
+
+        if view_dotted {
+            let pix_x = (cx * rect_w as f32) as usize;
+            let pix_y = (cy * rect_h as f32) as usize;
+            framebuffer[pix_x + pix_y * WIN_W] = pack_color(255, 255, 255, 255);
+        }
+    }
+}
+
+fn draw_fov_sector(
+    player_x: f32,
+    player_y: f32,
+    player_a: f32,
+    fov: f32,
+    framebuffer: &mut Vec<u32>,
+    rect_w: usize,
+    rect_h: usize,
+    map: &[&str; MAP_H],
+) {
+    for i in 0..WIN_W {
+        let angle = player_a - fov / 2.0 + fov * i as f32 / WIN_W as f32;
+
+        for t in (0..400).map(|t| t as f32 * 0.05) {
+            let cx = player_x + t * angle.cos();
+            let cy = player_y + t * angle.sin();
+            let map_x = cx.floor() as usize;
+            let map_y = cy.floor() as usize;
+
+            if map_x < MAP_W && map_y < MAP_H {
+                let map_tile = map[map_y].chars().nth(map_x).unwrap();
+                if map_tile != ' ' {
+                    break;
+                }
+            }
+
+            let pix_x = (cx * rect_w as f32) as usize;
+            let pix_y = (cy * rect_h as f32) as usize;
+            framebuffer[pix_x + pix_y * WIN_W] = pack_color(255, 255, 255, 255);
         }
     }
 }
